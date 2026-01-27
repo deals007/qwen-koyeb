@@ -17,8 +17,12 @@ set -euo pipefail
 # `PORT` environment variable.  If it is not set, default to 8188.
 PORT=${PORT:-8188}
 
-# Repository where the model files are hosted on Hugging Face.
-REPO_ID="Comfy-Org/Qwen-Image_ComfyUI"
+# Repository where the model files are hosted on Hugging Face.  This can be
+# overridden via the environment variable `REPO_ID` if you need to use
+# a different repository (for example, the edit model lives in
+# `Comfy-Org/Qwen-Image-Edit_ComfyUI`).  By default we use the
+# standard Qwen‑Image repository【838579163341816†L197-L233】.
+REPO_ID="${REPO_ID:-Comfy-Org/Qwen-Image_ComfyUI}"
 
 # File paths within the repository.  These can be overridden using
 # environment variables if you prefer alternate variants (for example,
@@ -66,22 +70,27 @@ token = os.environ.get("HF_TOKEN")  # optional – if the repo requires authenti
 path = pathlib.Path("/ComfyUI/models/") / model_dir
 path.mkdir(parents=True, exist_ok=True)
 
-# Perform the download.  We specify `local_dir` so that the file is
-# placed directly in the destination rather than in the cache.  Setting
-# `local_dir_use_symlinks=False` avoids creating symlinks, which may not
-# survive across deployments.
+# Perform the download.  `hf_hub_download` will download into the
+# local_dir directly when specified.  We omit `local_dir_use_symlinks`
+# because the option is deprecated.
 hf_hub_download(
     repo_id=repo_id,
     filename=filename,
-    cache_dir=str(path),
     local_dir=str(path),
-    local_dir_use_symlinks=False,
     token=token,
 )
 PY
 }
 
 # Export the repository ID for the Python helper
+# If the diffusion model path contains "_edit_" and no custom repository has
+# been provided, switch to the Qwen‑Image‑Edit repository automatically.  The
+# edit diffusion models are stored under `Comfy-Org/Qwen-Image-Edit_ComfyUI`【155723342399263†L187-L220】.
+if [[ "$DIFFUSION_MODEL_PATH" == *"_edit_"* ]] && [[ "$REPO_ID" == "Comfy-Org/Qwen-Image_ComfyUI" ]]; then
+  REPO_ID="Comfy-Org/Qwen-Image-Edit_ComfyUI"
+fi
+
+# Export the (possibly modified) repository ID for the Python helper
 export REPO_ID
 
 # Download the text encoder, diffusion model, optional LoRA, and VAE.
