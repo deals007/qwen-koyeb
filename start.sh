@@ -17,8 +17,7 @@ set -euo pipefail
 # `PORT` environment variable.  If it is not set, default to 8188.
 PORT=${PORT:-8188}
 
-# Repository where the model files are hosted on Hugging Face.  See the
-# ComfyUI documentation for details【838579163341816†L197-L233】.
+# Repository where the model files are hosted on Hugging Face.
 REPO_ID="Comfy-Org/Qwen-Image_ComfyUI"
 
 # File paths within the repository.  These can be overridden using
