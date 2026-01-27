@@ -17,12 +17,15 @@ set -euo pipefail
 # `PORT` environment variable.  If it is not set, default to 8188.
 PORT=${PORT:-8188}
 
-# Repository where the model files are hosted on Hugging Face.  This can be
-# overridden via the environment variable `REPO_ID` if you need to use
-# a different repository (for example, the edit model lives in
-# `Comfy-Org/Qwen-Image-Edit_ComfyUI`).  By default we use the
-# standard Qwen‑Image repository【838579163341816†L197-L233】.
-REPO_ID="${REPO_ID:-Comfy-Org/Qwen-Image_ComfyUI}"
+# Repositories where model files are hosted on Hugging Face.  Most files
+# (text encoder, VAE) live in the base Qwen‑Image repository.  The editing
+# diffusion model lives in a separate repository, and the 4‑step Lightning
+# LoRA lives in a third repository.  You can override these via environment
+# variables if necessary.
+BASE_REPO_ID="${BASE_REPO_ID:-Comfy-Org/Qwen-Image_ComfyUI}"
+EDIT_REPO_ID="${EDIT_REPO_ID:-Comfy-Org/Qwen-Image-Edit_ComfyUI}"
+DEFAULT_LORA_REPO_ID="${DEFAULT_LORA_REPO_ID:-Comfy-Org/Qwen-Image_ComfyUI}"
+LIGHTNING_LORA_REPO_ID="${LIGHTNING_LORA_REPO_ID:-lightx2v/Qwen-Image-Lightning}"
 
 # File paths within the repository.  These can be overridden using
 # environment variables if you prefer alternate variants (for example,
@@ -37,11 +40,11 @@ VAE_PATH="${VAE_PATH:-split_files/vae/qwen_image_vae.safetensors}"
 LORA_PATH="${LORA_PATH:-}"
 
 # Use huggingface‑hub via Python to download a file.  This helper
-# function sets environment variables for the Python snippet so that it
-# knows which file and directory to download.
+# function accepts an optional repository override as its third parameter.
 download_model() {
   local hf_filename="$1"
   local model_dir="$2"
+  local repo_override="$3"
   # Skip if no filename was provided
   if [ -z "$hf_filename" ]; then
     return
@@ -51,7 +54,15 @@ download_model() {
     echo "Model file $dest already exists; skipping download."
     return
   fi
-  echo "Downloading $dest from $REPO_ID ..."
+  # Determine which repository to use for this file.  Use the override if provided;
+  # otherwise fall back to the base repository.
+  if [ -n "$repo_override" ]; then
+    export OVERRIDE_REPO_ID="$repo_override"
+    echo "Downloading $dest from $repo_override ..."
+  else
+    export OVERRIDE_REPO_ID="$BASE_REPO_ID"
+    echo "Downloading $dest from $BASE_REPO_ID ..."
+  fi
   # Export variables so the Python snippet can read them
   export HF_FILENAME="$hf_filename"
   export HF_MODEL_DIR="$model_dir"
@@ -61,7 +72,7 @@ from huggingface_hub import hf_hub_download
 import pathlib
 
 # Retrieve parameters from environment variables
-repo_id = os.environ["REPO_ID"]
+repo_id = os.environ.get("OVERRIDE_REPO_ID") or os.environ.get("REPO_ID") or os.environ.get("BASE_REPO_ID")
 filename = os.environ["HF_FILENAME"]
 model_dir = os.environ["HF_MODEL_DIR"]
 token = os.environ.get("HF_TOKEN")  # optional – if the repo requires authentication
@@ -71,8 +82,7 @@ path = pathlib.Path("/ComfyUI/models/") / model_dir
 path.mkdir(parents=True, exist_ok=True)
 
 # Perform the download.  `hf_hub_download` will download into the
-# local_dir directly when specified.  We omit `local_dir_use_symlinks`
-# because the option is deprecated.
+# local_dir directly when specified.
 hf_hub_download(
     repo_id=repo_id,
     filename=filename,
@@ -80,24 +90,41 @@ hf_hub_download(
     token=token,
 )
 PY
+  # Unset override after download to avoid leaking into subsequent calls
+  unset OVERRIDE_REPO_ID
 }
 
-# Export the repository ID for the Python helper
-# If the diffusion model path contains "_edit_" and no custom repository has
-# been provided, switch to the Qwen‑Image‑Edit repository automatically.  The
-# edit diffusion models are stored under `Comfy-Org/Qwen-Image-Edit_ComfyUI`【155723342399263†L187-L220】.
-if [[ "$DIFFUSION_MODEL_PATH" == *"_edit_"* ]] && [[ "$REPO_ID" == "Comfy-Org/Qwen-Image_ComfyUI" ]]; then
-  REPO_ID="Comfy-Org/Qwen-Image-Edit_ComfyUI"
+# Determine per-file repositories.  Text encoder and VAE always come from the base repo.
+TEXT_ENCODER_REPO_ID="$BASE_REPO_ID"
+VAE_REPO_ID="$BASE_REPO_ID"
+
+# Determine diffusion model repository: use edit repo when the file name contains `_edit_`,
+# otherwise use the base repo.
+if [[ "$DIFFUSION_MODEL_PATH" == *"_edit_"* ]]; then
+  DIFFUSION_REPO_ID="$EDIT_REPO_ID"
+else
+  DIFFUSION_REPO_ID="$BASE_REPO_ID"
 fi
 
-# Export the (possibly modified) repository ID for the Python helper
-export REPO_ID
+# Determine LoRA repository.  If the user has specified LORA_PATH but no repo override,
+# choose based on filename.  The Lightning 4‑step LoRA lives in the `lightx2v/Qwen-Image-Lightning`
+# repository; all other LoRAs live in the base repository.  Users can override this via
+# the `LORA_REPO_ID` environment variable.
+if [ -n "$LORA_PATH" ]; then
+  if [ -n "${LORA_REPO_ID:-}" ]; then
+    LORA_REPO_ID="$LORA_REPO_ID"
+  elif [[ "$LORA_PATH" == *"Qwen-Image-Lightning-4steps-V1.0.safetensors"* ]]; then
+    LORA_REPO_ID="$LIGHTNING_LORA_REPO_ID"
+  else
+    LORA_REPO_ID="$DEFAULT_LORA_REPO_ID"
+  fi
+fi
 
-# Download the text encoder, diffusion model, optional LoRA, and VAE.
-download_model "$TEXT_ENCODER_PATH" "text_encoders"
-download_model "$DIFFUSION_MODEL_PATH" "diffusion_models"
-download_model "$LORA_PATH" "loras"
-download_model "$VAE_PATH" "vae"
+# Download the text encoder, diffusion model, optional LoRA, and VAE from their respective repositories.
+download_model "$TEXT_ENCODER_PATH" "text_encoders" "$TEXT_ENCODER_REPO_ID"
+download_model "$DIFFUSION_MODEL_PATH" "diffusion_models" "$DIFFUSION_REPO_ID"
+download_model "$LORA_PATH" "loras" "${LORA_REPO_ID:-}"
+download_model "$VAE_PATH" "vae" "$VAE_REPO_ID"
 
 # Optionally download the Qwen‑Image workflow file into /workflows if
 # requested.  Providing a workflow file makes it easy to load the
