@@ -1,40 +1,35 @@
-# Use the official Python base image
-FROM python:3.12
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
-# Install git so we can clone ComfyUI
-RUN apt-get update \
-    && apt-get install -y git \
-    && rm -rf /var/lib/apt/lists/*
+SHELL ["/bin/bash", "-lc"]
 
-# Clone the ComfyUI repository into /ComfyUI.  Using a fixed path makes it
-# easier to locate model directories later on.
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git /ComfyUI
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    COMFYUI_DIR=/opt/ComfyUI
 
-# Set the working directory inside the container to the ComfyUI repo
-WORKDIR /ComfyUI
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl ca-certificates \
+    python3 python3-pip python3-venv \
+    libgl1 libglib2.0-0 \
+ && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip, install GPU‑enabled PyTorch and other dependencies defined by
-# ComfyUI.  We also install huggingface‑hub so we can download model
-# checkpoints at runtime.
-RUN pip install --upgrade pip \
-    && pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121 \
-    && pip install -r requirements.txt \
-    && pip install huggingface-hub
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git ${COMFYUI_DIR}
 
-# Copy the start script into the container.  This script will download the
-# Qwen‑Image model files and start the ComfyUI server.  We also copy the
-# workflows folder to make it possible to include workflow templates in the
-# repository (optional).
+WORKDIR ${COMFYUI_DIR}
+
+# Torch CUDA 12.1 wheels
+RUN python3 -m pip install --upgrade pip wheel setuptools \
+ && python3 -m pip install --index-url https://download.pytorch.org/whl/cu121 \
+      torch torchvision torchaudio \
+ && python3 -m pip install -r requirements.txt
+
+# Optional but useful
+RUN mkdir -p ${COMFYUI_DIR}/custom_nodes \
+ && git clone https://github.com/ltdrdata/ComfyUI-Manager.git \
+      ${COMFYUI_DIR}/custom_nodes/ComfyUI-Manager
+
 COPY start.sh /start.sh
-COPY workflows /workflows
-
-# Make sure the start script is executable
 RUN chmod +x /start.sh
 
-# Expose the default ComfyUI port.  Koyeb will provide PORT as an
-# environment variable and expects the process to listen on that port.  If
-# PORT is not set, ComfyUI will use the default 8188.
 EXPOSE 8188
-
-# Run the start script on container startup
-ENTRYPOINT ["/start.sh"]
+CMD ["/start.sh"]
