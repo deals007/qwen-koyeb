@@ -4,18 +4,18 @@ set -euo pipefail
 COMFYUI_DIR="/opt/ComfyUI"
 PORT="${PORT:-8188}"
 
-# ---- Qwen-Image-2512 model files (your links) ----
+# ---- Qwen-Image-2511 model files ----
 TEXT_ENCODER_NAME="qwen_2.5_vl_7b_fp8_scaled.safetensors"
-TEXT_ENCODER_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"
+TEXT_ENCODER_URL="https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"
 
-DIFFUSION_NAME="qwen_image_2512_fp8_e4m3fn.safetensors"
-DIFFUSION_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_2512_fp8_e4m3fn.safetensors"
+DIFFUSION_NAME="qwen_image_edit_2511_bf16.safetensors"
+DIFFUSION_URL="https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_bf16.safetensors"
 
 VAE_NAME="qwen_image_vae.safetensors"
 VAE_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors"
 
-LORA_NAME="Qwen-Image-Lightning-4steps-V1.0.safetensors"
-LORA_URL="https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-4steps-V1.0.safetensors"
+LORA_NAME="Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
+LORA_URL="https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
 
 # ---- ComfyUI model directories (these are the expected locations) ----
 TEXT_DIR="${COMFYUI_DIR}/models/text_encoders"
