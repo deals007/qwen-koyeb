@@ -11,8 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates \
     python3 python3-pip python3-venv \
     libgl1 libglib2.0-0 \
+    ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
+# ComfyUI
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git ${COMFYUI_DIR}
 
 WORKDIR ${COMFYUI_DIR}
@@ -23,7 +25,7 @@ RUN python3 -m pip install --upgrade pip wheel setuptools \
       torch torchvision torchaudio \
  && python3 -m pip install -r requirements.txt
 
-# Optional but useful
+# ComfyUI-Manager (optional but useful)
 RUN mkdir -p ${COMFYUI_DIR}/custom_nodes \
  && git clone https://github.com/ltdrdata/ComfyUI-Manager.git \
       ${COMFYUI_DIR}/custom_nodes/ComfyUI-Manager
